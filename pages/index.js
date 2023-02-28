@@ -35,7 +35,7 @@ export async function getStaticProps() {
   //Connecting to Ethereum Goerli Network
 
   const provider = new ethers.providers.WebSocketProvider(
-    "wss://eth-goerli.g.alchemy.com/v2/6WDKZRPFR3JfUlvLpczZ491-CvXm-jhc"
+    process.env.GOERLI_RPC_URL
   );
 
   const contractAddress = "0x5b8081DBa963EECC87416EE82256762a9984f43d";
