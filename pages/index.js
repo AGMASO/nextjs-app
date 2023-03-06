@@ -6,7 +6,12 @@ import { ethers } from "ethers";
 import { MongoClient } from "mongodb";
 import { abi, contractAddress } from "../constants/index";
 
-export default function Home(props) {
+//----------------------------
+import connectMongo from "../utils/connectMongo";
+import ActiveNft from "../models/ActiveNft";
+import ListedNft from "../models/ListedNft";
+
+export default function Home({ ActiveNfts }) {
   return (
     <>
       <Head>
@@ -20,10 +25,21 @@ export default function Home(props) {
       </Head>
 
       <main className="flex justify-center">
-        <div className="">
-          <h1 className="py-10 px-4 font-extralight text-5xl text-white">
-            Welcome to the real decentralized Nfts Market
-          </h1>
+        <div>
+          <div className="">
+            <h1 className="py-10 px-4 font-extralight text-5xl text-white">
+              Welcome to the real decentralized Nfts Market
+            </h1>
+          </div>
+          <div>
+            {ActiveNfts.map((ActiveNft) => (
+              <a href="https://google.com" key={ActiveNft._id}>
+                <h2>{ActiveNft.tokenId}</h2>
+                <h2>{ActiveNft.nftAddress}</h2>
+                <h2>{ActiveNft.data.event}</h2>
+              </a>
+            ))}
+          </div>
         </div>
       </main>
     </>
@@ -38,15 +54,15 @@ export async function getStaticProps() {
     process.env.GOERLI_RPC_URL
   );
 
-  const contractAddress = "0x5b8081DBa963EECC87416EE82256762a9984f43d";
+  const contractAddress = "0xDD8b8197779524BC4f6C4f258603959CB30544d2";
   const contractAbi = abi;
   const contract = new ethers.Contract(contractAddress, contractAbi, provider);
-  // Listen to the event emitted by the Solidity contract
+  // Listen to the event ItemListing emitted by the Solidity contract
 
-  contract.on(
+  contract.once(
     "ItemListing",
     async (seller, nftAddress, tokenId, price, event) => {
-      const nft = {
+      const ActiveNft = {
         seller: seller,
         nftAddress: nftAddress,
         tokenId: tokenId.toString(),
@@ -54,7 +70,7 @@ export async function getStaticProps() {
         data: event,
       };
 
-      console.log(JSON.stringify(nft));
+      //console.log(JSON.stringify(ActiveNft));
 
       //Connect to MongoDb
 
@@ -63,35 +79,168 @@ export async function getStaticProps() {
       //Iniciamos la database conectada al cliente.
       const dataBase = client.db();
 
-      console.log("You are coneccted to the dataBase");
+      console.log("You are conected to the dataBase");
 
       // Store the transaction in MongoDB
 
-      const collection = dataBase.collection("nfts");
+      const collection = dataBase.collection("listednfts");
+      try {
+        await collection.insertOne(ActiveNft, function (error, result) {
+          return result;
+        });
+      } catch (error) {
+        console.log(error);
+      }
 
-      collection.insertOne(nft, function (error, result) {
+      const collection2 = dataBase.collection("activenfts");
+
+      try {
+        await collection2.insertOne(ActiveNft, function (error, result) {
+          return result;
+        });
+      } catch (error) {
+        console.log(error);
+      }
+      /*await collection2.insertOne(ActiveNft, function (error, result) {
         if (error) {
           console.error(error);
         } else {
-          console.log(`NftList stored in MongoDB: ${nft}`);
+          console.log(`NftList stored in MongoDB: ${result2}`);
+          //Closing DB
+        }
+        client.close();
+      });*/
+    }
+  );
+  //END
+
+  // LIsten to ItenBought Event
+
+  contract.once("ItemBought", async (buyer, nftAddress, tokenId, price) => {
+    const nft = {
+      buyer: buyer,
+      nftAddress: nftAddress,
+      tokenId: tokenId.toString(),
+      price: ethers.utils.formatEther(price),
+    };
+
+    console.log(JSON.stringify(nft));
+
+    //Connect to MongoDb
+
+    const client = await MongoClient.connect(process.env.MONGODB_KEY);
+
+    //Iniciamos la database conectada al cliente.
+    const dataBase = client.db();
+
+    console.log("You are coneccted to the dataBase");
+
+    // Store the transaction in MongoDB
+    const collection = dataBase.collection("boughtNfts");
+    await collection.insertOne(nft, function (error, result) {
+      if (error) {
+        console.error(error);
+      } else {
+        console.log(`NftList stored in MongoDB: ${nft}`);
+        //Closing DB
+        client.close();
+      }
+    });
+
+    const collection2 = dataBase.collection("activenfts");
+    await collection2.findOneAndDelete(
+      { tokenId: nft.tokenId },
+      function (error, result) {
+        if (error) {
+          console.error(error);
+        } else {
+          console.log(`Nft deslistado from Database: ${nft}`);
           //Closing DB
           client.close();
         }
-      });
-      return nft;
-    }
-  );
+      }
+    );
+    return nft;
+  });
 
-  return {
-    props: {
-      /*
-      nftsDummy: nfts.map((nft) => ({
-        id: nft._id.toString(),
-        Owner: nft.seller,
-        address: nft.nftAddress,
-        price: nft.price,
-      })),
-    */
-    },
-  };
+  //END
+
+  //Listen to ItemCanceled
+
+  contract.once("ItemCanceled", async (seller, nftAddress, tokenId) => {
+    const nft = {
+      seller: seller,
+      nftAddress: nftAddress,
+      tokenId: tokenId.toString(),
+    };
+
+    console.log(JSON.stringify(nft));
+
+    //Connect to MongoDb
+
+    const client = await MongoClient.connect(process.env.MONGODB_KEY);
+
+    //Iniciamos la database conectada al cliente.
+    const dataBase = client.db();
+
+    console.log("You are coneccted to the dataBase");
+
+    // Store the transaction in MongoDB
+
+    const collection = dataBase.collection("cancelledNfts");
+    collection.insertOne(nft, function (error, result) {
+      if (error) {
+        console.error(error);
+      } else {
+        console.log(`CancelledNft stored in MongoDB: ${nft}`);
+        //Closing DB
+        client.close();
+      }
+    });
+
+    const collection2 = dataBase.collection("activenfts");
+
+    collection2.findOneAndDelete(
+      { tokenId: nft.tokenId },
+      function (error, result) {
+        if (error) {
+          console.error(error);
+        } else {
+          console.log(`Nft deslistado from Database: ${nft}`);
+          //Closing DB
+          client.close();
+        }
+      }
+    );
+    return nft;
+  });
+  //END
+
+  //Connect to MongoDb
+
+  try {
+    console.log("CONNECTING TO MONGO");
+
+    await connectMongo();
+
+    console.log("CONNECTED TO MONGO");
+
+    console.log("FETCHING DATA");
+
+    const ActiveNfts = await ActiveNft.find();
+
+    console.log("FETCHED DATA");
+
+    return {
+      props: {
+        ActiveNfts: JSON.parse(JSON.stringify(ActiveNfts)),
+      },
+    };
+  } catch (error) {
+    console.log(error);
+
+    return {
+      notFound: true,
+    };
+  }
 }
