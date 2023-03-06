@@ -83,24 +83,57 @@ export async function getStaticProps() {
 
       // Store the transaction in MongoDB
 
-      const collection = dataBase.collection("listednfts");
-      try {
+      const collection = await dataBase.collection("listednfts");
+
+      if (
+        (await collection.countDocuments({
+          tokenId: ActiveNft.tokenId,
+          added_at: { $exists: true },
+        })) === 0
+      ) {
+        try {
+          await collection.insertOne(ActiveNft, function (error, result) {
+            return result;
+          });
+        } catch (error) {
+          console.log(error);
+        }
+      } else {
+        console.log("Document already exits in the Database");
+      }
+      /*try {
         await collection.insertOne(ActiveNft, function (error, result) {
           return result;
         });
       } catch (error) {
         console.log(error);
-      }
+      }*/
 
       const collection2 = dataBase.collection("activenfts");
+      if (
+        (await collection2.countDocuments({
+          tokenId: ActiveNft.tokenId,
+          added_at: { $exists: true },
+        })) === 0
+      ) {
+        try {
+          await collection2.insertOne(ActiveNft, function (error, result) {
+            return result;
+          });
+        } catch (error) {
+          console.log(error);
+        }
+      } else {
+        console.log("Document already exits in the Database");
+      }
 
-      try {
+      /*try {
         await collection2.insertOne(ActiveNft, function (error, result) {
           return result;
         });
       } catch (error) {
         console.log(error);
-      }
+      }*/
       /*await collection2.insertOne(ActiveNft, function (error, result) {
         if (error) {
           console.error(error);
